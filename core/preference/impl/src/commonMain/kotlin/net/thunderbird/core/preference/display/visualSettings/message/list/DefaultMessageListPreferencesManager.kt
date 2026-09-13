@@ -72,6 +72,10 @@ class DefaultMessageListPreferencesManager(
             DisplayMessageListSettingKey.MessageListDateTimeFormat.value,
             MESSAGE_LIST_SETTINGS_DEFAULT_DATE_TIME_FORMAT,
         ),
+        aggregationMode = storage.getEnumOrDefault(
+            DisplayMessageListSettingKey.MessageListAggregationMode.value,
+            MESSAGE_LIST_SETTINGS_DEFAULT_AGGREGATION_MODE,
+        ),
     )
 
     private fun write(preferences: DisplayMessageListSettings) {
@@ -100,6 +104,10 @@ class DefaultMessageListPreferencesManager(
         storageEditor.putInt(DisplayMessageListSettingKey.RegisteredNameColor.value, preferences.contactNameColor)
         storageEditor.putEnum(DisplayMessageListSettingKey.MessageListDensity.value, preferences.uiDensity)
         storageEditor.putEnum(DisplayMessageListSettingKey.MessageListDateTimeFormat.value, preferences.dateTimeFormat)
+        storageEditor.putEnum(
+            DisplayMessageListSettingKey.MessageListAggregationMode.value,
+            preferences.aggregationMode,
+        )
         storageEditor.commit().also { commited ->
             logger.verbose(TAG) { "writeConfig: storageEditor.commit() resulted in: $commited" }
         }

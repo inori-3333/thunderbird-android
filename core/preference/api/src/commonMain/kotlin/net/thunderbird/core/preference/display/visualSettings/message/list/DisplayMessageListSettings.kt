@@ -22,4 +22,5 @@ data class DisplayMessageListSettings(
     val uiDensity: UiDensity = MESSAGE_LIST_SETTINGS_DEFAULT_UI_DENSITY,
     val contactNameColor: Int = DISPLAY_SETTINGS_DEFAULT_CONTACT_NAME_COLOR,
     val dateTimeFormat: MessageListDateTimeFormat = MESSAGE_LIST_SETTINGS_DEFAULT_DATE_TIME_FORMAT,
+    val aggregationMode: MessageListAggregationMode = MESSAGE_LIST_SETTINGS_DEFAULT_AGGREGATION_MODE,
 )
