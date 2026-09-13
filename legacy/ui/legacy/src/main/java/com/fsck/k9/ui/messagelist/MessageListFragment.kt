@@ -36,7 +36,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -118,6 +117,8 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textview.MaterialTextView
 import java.util.concurrent.Future
 import kotlinx.collections.immutable.ImmutableSet
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -140,7 +141,6 @@ import net.thunderbird.components.core.outcome.Outcome
 import net.thunderbird.core.preference.GeneralSettingsManager
 import net.thunderbird.core.preference.interaction.InteractionSettings
 import net.thunderbird.components.ui.bolt.atom.ClickableSurface
-import net.thunderbird.components.ui.bolt.atom.button.RadioButton
 import net.thunderbird.components.ui.bolt.atom.icon.Icon
 import net.thunderbird.components.ui.bolt.atom.icon.Icons
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
@@ -1059,6 +1059,7 @@ class MessageListFragment :
     private fun prepareMenu(menu: Menu) {
         menu.findItem(R.id.compose).isVisible = !isShowFloatingActionButton
         prepareSortMenu(menu)
+        prepareAggregationMenu(menu)
         menu.findItem(R.id.select_all).isVisible = true
         menu.findItem(R.id.mark_all_as_read).isVisible = isMarkAllAsReadSupported
         menu.findItem(R.id.empty_spam).isVisible = isShowingSpamFolder
@@ -1116,8 +1117,43 @@ class MessageListFragment :
         }
     }
 
+    /**
+     * Offers the sender aggregation for folders that contain messages of other people.
+     *
+     * Sent, Drafts and Outbox are excluded: aggregating them would put every message into a single group.
+     */
+    private fun prepareAggregationMenu(menu: Menu) {
+        menu.findItem(R.id.toggle_sender_aggregation).apply {
+            isVisible = stateSnapshot.metadata.contactAggregationAvailable
+            isChecked = stateSnapshot.aggregationEnabled
+            title = getString(
+                if (isChecked) {
+                    MessageListR.string.message_list_aggregation_mode_contact
+                } else {
+                    MessageListR.string.message_list_aggregation_mode_normal
+                },
+            )
+        }
+    }
+
+    private fun onToggleSenderAggregation() {
+        val mode = if (stateSnapshot.aggregationEnabled) {
+            MessageListAggregationMode.NONE
+        } else {
+            MessageListAggregationMode.CONTACT
+        }
+        viewModel.event(MessageListEvent.SetAggregationMode(mode))
+
+        // Reflect the new mode in the menu once the new preferences have been applied to the state.
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.state.first { state -> state.preferences?.aggregationMode == mode }
+            activity?.invalidateOptionsMenu()
+        }
+    }
+
     private fun selectMenuItem(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.toggle_sender_aggregation -> onToggleSenderAggregation()
             R.id.search_remote -> onRemoteSearch()
             R.id.compose -> onCompose()
             R.id.select_all -> selectAll()
@@ -2537,7 +2573,6 @@ class MessageListFragment :
     private fun SortCriteriaMenuList() {
         val (state, dispatch) = viewModel.observeWithoutEffect()
         val metadata = state.value.metadata
-        val preferences = state.value.preferences
         val folder = metadata.folder
         val accountId = folder?.account?.id?.takeIf { it != UnifiedAccountId }
         val primarySortTypes = metadata.availablePrimarySortTypes
@@ -2546,93 +2581,41 @@ class MessageListFragment :
             metadata.sortCriteriaPerAccount.getValue(accountId)
         }
 
-        Column(
-            modifier = Modifier
-                .verticalScroll(state = rememberScrollState())
-                .heightIn(max = 480.dp),
+        Surface(
+            modifier = Modifier.padding(BoltTheme.spacings.default),
+            color = BoltTheme.colors.surfaceContainer,
+            tonalElevation = BoltTheme.elevations.level2,
+            shape = BoltTheme.shapes.medium,
         ) {
-            Surface(
-                modifier = Modifier.padding(BoltTheme.spacings.default),
-                color = BoltTheme.colors.surfaceContainer,
-                tonalElevation = BoltTheme.elevations.level2,
-                shape = BoltTheme.shapes.medium,
-            ) {
-                SortTypeList(
-                    currentSortCriteria = currentSortCriteria,
-                    primarySortTypes = primarySortTypes,
-                    secondarySortTypes = secondarySortTypes,
-                    isSelected = { sortType -> currentSortCriteria.primary == sortType },
-                    onSortTypeClick = { sortType ->
-                        dispatch(
-                            MessageListEvent.ChangeSortCriteria(
-                                accountId = accountId,
-                                sortCriteria = currentSortCriteria.copy(
-                                    primary = sortType,
-                                    secondary = when {
-                                        sortType in SortCriteria.SecondaryNotRequiredForSortTypes -> null
-                                        else -> SortType.DateDesc
-                                    },
-                                ),
+            SortTypeList(
+                currentSortCriteria = currentSortCriteria,
+                primarySortTypes = primarySortTypes,
+                secondarySortTypes = secondarySortTypes,
+                isSelected = { sortType -> currentSortCriteria.primary == sortType },
+                onSortTypeClick = { sortType ->
+                    dispatch(
+                        MessageListEvent.ChangeSortCriteria(
+                            accountId = accountId,
+                            sortCriteria = currentSortCriteria.copy(
+                                primary = sortType,
+                                secondary = when {
+                                    sortType in SortCriteria.SecondaryNotRequiredForSortTypes -> null
+                                    else -> SortType.DateDesc
+                                },
                             ),
-                        )
-                    },
-                    onSecondarySortTypeClick = { sortType ->
-                        dispatch(
-                            MessageListEvent.ChangeSortCriteria(
-                                accountId = accountId,
-                                sortCriteria = currentSortCriteria.copy(secondary = sortType),
-                            ),
-                        )
-                    },
-                )
-            }
-
-            if (metadata.contactAggregationAvailable && preferences != null) {
-                Surface(
-                    modifier = Modifier.padding(horizontal = BoltTheme.spacings.default),
-                    color = BoltTheme.colors.surfaceContainer,
-                    tonalElevation = BoltTheme.elevations.level2,
-                    shape = BoltTheme.shapes.medium,
-                ) {
-                    AggregationModeList(
-                        currentMode = preferences.aggregationMode,
-                        onModeClick = { mode -> dispatch(MessageListEvent.SetAggregationMode(mode)) },
+                        ),
                     )
-                }
-            }
+                },
+                onSecondarySortTypeClick = { sortType ->
+                    dispatch(
+                        MessageListEvent.ChangeSortCriteria(
+                            accountId = accountId,
+                            sortCriteria = currentSortCriteria.copy(secondary = sortType),
+                        ),
+                    )
+                },
+            )
         }
-    }
-
-    /**
-     * Displays the message list display modes.
-     *
-     * Contact aggregation is only offered for folders that contain messages of other people.
-     */
-    @Composable
-    private fun AggregationModeList(
-        currentMode: MessageListAggregationMode,
-        onModeClick: (MessageListAggregationMode) -> Unit,
-    ) {
-        Column(modifier = Modifier.padding(vertical = BoltTheme.spacings.default)) {
-            SortTypeDivider(label = stringResource(MessageListR.string.message_list_aggregation_mode_label))
-            MessageListAggregationMode.entries.forEach { mode ->
-                RadioButton(
-                    label = stringResource(mode.labelResId()),
-                    selected = mode == currentMode,
-                    onClick = { onModeClick(mode) },
-                    modifier = Modifier.padding(
-                        vertical = BoltTheme.spacings.default,
-                        horizontal = BoltTheme.spacings.double,
-                    ),
-                )
-            }
-        }
-    }
-
-    @StringRes
-    private fun MessageListAggregationMode.labelResId(): Int = when (this) {
-        MessageListAggregationMode.NONE -> MessageListR.string.message_list_aggregation_mode_normal
-        MessageListAggregationMode.CONTACT -> MessageListR.string.message_list_aggregation_mode_contact
     }
 
     companion object Factory : MessageListFragmentBridgeContract.Factory {

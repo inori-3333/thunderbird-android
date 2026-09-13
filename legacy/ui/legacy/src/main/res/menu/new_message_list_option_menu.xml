@@ -35,6 +35,13 @@
         />
 
     <item
+        android:id="@+id/toggle_sender_aggregation"
+        android:checkable="true"
+        android:title="@string/message_list_aggregation_settings_title"
+        app:showAsAction="never"
+        />
+
+    <item
         android:id="@+id/select_all"
         android:icon="@drawable/ic_select_all"
         android:title="@string/batch_select_all"

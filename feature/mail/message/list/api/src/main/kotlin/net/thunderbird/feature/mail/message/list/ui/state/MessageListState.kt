@@ -5,6 +5,7 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
+import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListAggregationMode
 import net.thunderbird.feature.mail.message.list.aggregation.model.ContactIdentity
 import net.thunderbird.feature.mail.message.list.aggregation.model.SenderIdentity
 import net.thunderbird.feature.mail.message.list.preferences.MessageListPreferences
@@ -169,6 +170,14 @@ sealed interface MessageListState {
             contactIdentities = contactIdentities,
         )
     }
+
+    /**
+     * Whether the messages of the list are aggregated by sender.
+     *
+     * This is a convenience for hosts that display the current mode, such as a checkable menu item.
+     */
+    val aggregationEnabled: Boolean
+        get() = preferences?.aggregationMode == MessageListAggregationMode.CONTACT
 
     /**
      * Represents the initial state of the message list screen before any messages are loaded.
