@@ -28,4 +28,15 @@
     <string name="sort_by_unread_desc">已读在前</string>
     <string name="sort_by_attach_asc">带附件在前</string>
     <string name="sort_by_attach_desc">无附件在前</string>
+    <string name="message_list_aggregation_settings_title">按发件人聚合邮件</string>
+    <string name="message_list_aggregation_settings_summary">把同一发件人的邮件在列表中合并为一条。授予通讯录权限后，同一联系人的多个邮箱地址也会合并。</string>
+    <string name="message_list_aggregation_mode_label">邮件显示方式</string>
+    <string name="message_list_aggregation_mode_normal">普通列表</string>
+    <string name="message_list_aggregation_mode_contact">按发件人聚合</string>
+    <string name="message_list_contact_group_unknown_sender">未知发件人</string>
+    <string name="message_list_contact_group_unnamed_sender">无名称</string>
+    <string name="message_list_contact_group_message_count">%d 封</string>
+    <string name="message_list_contact_group_unread_count">%d 封未读</string>
+    <string name="message_list_contact_group_state_read_description">已读</string>
+    <string name="message_list_contact_group_state_unread_description">未读</string>
 </resources>

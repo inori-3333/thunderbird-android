@@ -329,6 +329,12 @@
                 />
 
             <CheckBoxPreference
+                android:key="sender_aggregation"
+                android:summary="@string/message_list_aggregation_settings_summary"
+                android:title="@string/message_list_aggregation_settings_title"
+                />
+
+            <CheckBoxPreference
                 android:key="show_compose_button"
                 android:title="@string/general_settings_show_compose_button_title"
                 />

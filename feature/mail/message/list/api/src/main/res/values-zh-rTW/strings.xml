@@ -13,4 +13,15 @@
     <string name="swipe_action_spam">標記為垃圾郵件</string>
     <string name="swipe_action_move">移動…</string>
     <string name="actionbar_selected"><xliff:g id="selection_count">%d</xliff:g> 已選擇</string>
+    <string name="message_list_aggregation_settings_title">依寄件人彙總郵件</string>
+    <string name="message_list_aggregation_settings_summary">把同一寄件人的郵件在清單中合併為一筆。授予聯絡人權限後，同一聯絡人的多個電子郵件地址也會合併。</string>
+    <string name="message_list_aggregation_mode_label">郵件顯示方式</string>
+    <string name="message_list_aggregation_mode_normal">一般清單</string>
+    <string name="message_list_aggregation_mode_contact">依寄件人彙總</string>
+    <string name="message_list_contact_group_unknown_sender">未知寄件人</string>
+    <string name="message_list_contact_group_unnamed_sender">無名稱</string>
+    <string name="message_list_contact_group_message_count">%d 封</string>
+    <string name="message_list_contact_group_unread_count">%d 封未讀</string>
+    <string name="message_list_contact_group_state_read_description">已讀</string>
+    <string name="message_list_contact_group_state_unread_description">未讀</string>
 </resources>

@@ -33,6 +33,8 @@
     <string name="message_list_aggregation_mode_label">Message display</string>
     <string name="message_list_aggregation_mode_normal">Normal list</string>
     <string name="message_list_aggregation_mode_contact">Group by sender</string>
+    <string name="message_list_aggregation_settings_title">Group messages by sender</string>
+    <string name="message_list_aggregation_settings_summary">Show all messages of a sender as one entry in the message list. Grant the contacts permission to also merge the addresses of one contact.</string>
     <string name="message_list_contact_group_unknown_sender">Unknown sender</string>
     <string name="message_list_contact_group_unnamed_sender">No name</string>
     <string name="message_list_contact_group_message_count">%d messages</string>

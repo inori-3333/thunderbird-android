@@ -18,6 +18,7 @@ import net.thunderbird.core.preference.SubTheme
 import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListDateTimeFormat
 import net.thunderbird.core.preference.display.visualSettings.message.list.UiDensity
 import net.thunderbird.core.preference.interaction.PostMarkAsUnreadNavigation
+import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListAggregationMode
 import net.thunderbird.core.preference.update
 
 @Suppress("LargeClass")
@@ -55,6 +56,8 @@ class GeneralSettingsDataStore(
             "messagelist_background_as_unread_indicator" -> messageListSettings.isUseBackgroundAsUnreadIndicator
             "show_compose_button" -> inboxSettings.isShowComposeButtonOnMessageList
             "threaded_view" -> inboxSettings.isThreadedViewEnabled
+            "sender_aggregation" ->
+                messageListSettings.aggregationMode == MessageListAggregationMode.CONTACT
             "messageview_fixedwidth_font" -> visualSettings.isUseMessageViewFixedWidthFont
             "messageview_autofit_width" -> visualSettings.isAutoFitWidth
             "drawerExpandAllFolder" -> visualSettings.drawerExpandAllFolder
@@ -99,6 +102,7 @@ class GeneralSettingsDataStore(
 
             "show_compose_button" -> setIsShowComposeButtonOnMessageList(isShowComposeButtonOnMessageList = value)
             "threaded_view" -> setIsThreadedViewEnabled(isThreadedViewEnabled = value)
+            "sender_aggregation" -> setSenderAggregationEnabled(enabled = value)
             "messageview_fixedwidth_font" -> setIsUseMessageViewFixedWidthFont(isUseMessageViewFixedWidthFont = value)
             "messageview_autofit_width" -> setIsAutoFitWidth(isAutoFitWidth = value)
             "quiet_time_enabled" -> setIsQuietTimeEnabled(isQuietTimeEnabled = value)
@@ -575,6 +579,25 @@ class GeneralSettingsDataStore(
                 display = settings.display.copy(
                     inboxSettings = settings.display.inboxSettings.copy(
                         isShowComposeButtonOnMessageList = isShowComposeButtonOnMessageList,
+                    ),
+                ),
+            )
+        }
+    }
+
+    private fun setSenderAggregationEnabled(enabled: Boolean) {
+        skipSaveSettings = true
+        generalSettingsManager.update { settings ->
+            settings.copy(
+                display = settings.display.copy(
+                    visualSettings = settings.display.visualSettings.copy(
+                        messageListSettings = settings.display.visualSettings.messageListSettings.copy(
+                            aggregationMode = if (enabled) {
+                                MessageListAggregationMode.CONTACT
+                            } else {
+                                MessageListAggregationMode.NONE
+                            },
+                        ),
                     ),
                 ),
             )
