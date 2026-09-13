@@ -5,6 +5,7 @@ package net.thunderbird.feature.mail.message.list.internal.ui.state.machine
 import androidx.compose.ui.graphics.Color
 import kotlinx.collections.immutable.ImmutableSet
 import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -15,6 +16,7 @@ import net.thunderbird.core.common.action.SwipeActions
 import net.thunderbird.core.logging.testing.TestLogger
 import net.thunderbird.core.preference.debugging.DebuggingSettings
 import net.thunderbird.core.preference.debugging.DebuggingSettingsPreferenceManager
+import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListAggregationMode
 import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListDateTimeFormat
 import net.thunderbird.core.preference.display.visualSettings.message.list.UiDensity
 import net.thunderbird.core.testing.TestClock
@@ -22,8 +24,13 @@ import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.account.AccountIdFactory
 import net.thunderbird.feature.account.UnifiedAccountId
 import net.thunderbird.feature.mail.folder.api.FolderType
+import net.thunderbird.feature.mail.message.list.aggregation.model.SenderIdentity
+import net.thunderbird.feature.mail.message.list.aggregation.model.createSenderIdentityOrNull
 import net.thunderbird.feature.mail.message.list.domain.model.SortCriteria
 import net.thunderbird.feature.mail.message.list.domain.model.SortType
+import net.thunderbird.feature.mail.message.list.internal.aggregation.ContactMessageAggregator
+import net.thunderbird.feature.mail.message.list.internal.aggregation.MessageListContentFactory
+import net.thunderbird.feature.mail.message.list.internal.fakes.FakeStringsResourceManager
 import net.thunderbird.feature.mail.message.list.preferences.ActionRequiringUserConfirmation
 import net.thunderbird.feature.mail.message.list.preferences.MessageListPreferences
 import net.thunderbird.feature.mail.message.list.ui.effect.MessageListEffect
@@ -40,6 +47,7 @@ open class BaseMessageListStateMachineTest {
     protected fun TestScope.createStateMachine(
         dispatch: (MessageListEvent) -> Unit = {},
         dispatchUiEffect: (MessageListEffect) -> Unit = {},
+        contentFactory: ContentFactory = createTestContentFactory(),
     ) = MessageListStateMachine(
         logger = TestLogger(),
         clock = TestClock(),
@@ -47,6 +55,20 @@ open class BaseMessageListStateMachineTest {
         dispatch = dispatch,
         dispatchUiEffect = dispatchUiEffect,
         debuggingSettingsPreferenceManager = FakeDebuggingSettingsPreferenceManager(),
+        contentFactory = contentFactory,
+    )
+
+    /**
+     * Creates the content factory that is used by the state machine.
+     *
+     * It delegates to the production aggregation so that the state machine tests cover the real content
+     * creation.
+     */
+    internal fun createTestContentFactory(): ContentFactory = createContentFactory(
+        contentFactory = MessageListContentFactory(
+            contactMessageAggregator = ContactMessageAggregator(),
+            stringsResourceManager = FakeStringsResourceManager(),
+        ),
     )
 
     protected suspend fun TestScope.createStateMachineOnLoadingState(
@@ -169,14 +191,19 @@ open class BaseMessageListStateMachineTest {
     ): List<MessageItemUi> = List(size) { builder(it) }
 
     protected fun createMessageUiItem(
-        state: State,
-        id: String,
+        state: State = State.Unread,
+        id: String = "id",
         messageReference: String = "message_reference",
         accountId: AccountId = AccountIdFactory.create(),
         senders: ComposedAddressUi = ComposedAddressUi(displayName = "sender"),
+        senderIdentity: SenderIdentity? = createSenderIdentityOrNull(
+            address = "sender@example.com",
+            displayName = "Sender",
+        ),
         subject: String = "mock subject",
         excerpt: String = "mock excerpt",
         formattedReceivedAt: String = "Jan 2026",
+        sortTimestamp: Long = 1L,
         hasAttachments: Boolean = false,
         starred: Boolean = false,
         encrypted: Boolean = false,
@@ -190,9 +217,11 @@ open class BaseMessageListStateMachineTest {
         messageReference = messageReference,
         account = Account(id = accountId, color = Color.Unspecified),
         senders = senders,
+        senderIdentity = senderIdentity,
         subject = subject,
         excerpt = excerpt,
         formattedReceivedAt = formattedReceivedAt,
+        sortTimestamp = sortTimestamp,
         hasAttachments = hasAttachments,
         starred = starred,
         encrypted = encrypted,
@@ -231,6 +260,7 @@ open class BaseMessageListStateMachineTest {
         dateTimeFormat: MessageListDateTimeFormat = MessageListDateTimeFormat.Contextual,
         actionRequiringUserConfirmation: ImmutableSet<ActionRequiringUserConfirmation> = persistentSetOf(),
         colorizeBackgroundWhenRead: Boolean = false,
+        aggregationMode: MessageListAggregationMode = MessageListAggregationMode.NONE,
     ) = MessageListPreferences(
         density = density,
         groupConversations = groupConversations,
@@ -242,6 +272,7 @@ open class BaseMessageListStateMachineTest {
         dateTimeFormat = dateTimeFormat,
         actionRequiringUserConfirmation = actionRequiringUserConfirmation,
         colorizeBackgroundWhenRead = colorizeBackgroundWhenRead,
+        aggregationMode = aggregationMode,
     )
 
     protected class FakeDebuggingSettingsPreferenceManager(

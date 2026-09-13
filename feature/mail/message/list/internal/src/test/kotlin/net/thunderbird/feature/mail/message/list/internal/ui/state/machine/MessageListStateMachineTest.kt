@@ -4,6 +4,7 @@ import app.cash.turbine.test
 import assertk.all
 import assertk.assertThat
 import assertk.assertions.containsExactly
+import assertk.assertions.hasSize
 import assertk.assertions.isEqualTo
 import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
@@ -16,9 +17,11 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import net.thunderbird.core.common.action.SwipeAction
 import net.thunderbird.core.common.action.SwipeActions
+import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListAggregationMode
 import net.thunderbird.core.preference.display.visualSettings.message.list.UiDensity
 import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.account.AccountIdFactory
+import net.thunderbird.feature.mail.folder.api.FolderType
 import net.thunderbird.feature.mail.message.list.domain.model.SortCriteria
 import net.thunderbird.feature.mail.message.list.domain.model.SortType
 import net.thunderbird.feature.mail.message.list.internal.fakes.RecordingFunction
@@ -28,6 +31,7 @@ import net.thunderbird.feature.mail.message.list.ui.event.MessageItemEvent
 import net.thunderbird.feature.mail.message.list.ui.event.MessageListEvent
 import net.thunderbird.feature.mail.message.list.ui.event.MessageListSearchEvent
 import net.thunderbird.feature.mail.message.list.ui.state.Folder
+import net.thunderbird.feature.mail.message.list.ui.state.MessageListContent
 import net.thunderbird.feature.mail.message.list.ui.state.MessageListMetadata
 import net.thunderbird.feature.mail.message.list.ui.state.MessageListState
 
@@ -297,6 +301,96 @@ class MessageListStateMachineTest : BaseMessageListStateMachineTest() {
                     }
             }
         }
+
+    // region [Aggregation mode]
+    @Test
+    fun `process() should switch to contact groups when the aggregation mode changes to CONTACT`() =
+        runTest {
+            // Arrange
+            val messages = listOf(createMessageUiItem())
+            val stateMachine = createStateMachineOnLoadedState(messages = messages)
+            advanceUntilIdle()
+
+            stateMachine.currentState.test {
+                // enforce correct state before acting.
+                assertThat(expectMostRecentItem().content).isInstanceOf<MessageListContent.Messages>()
+
+                // Act
+                stateMachine.process(
+                    event = MessageListEvent.UpdatePreferences(
+                        preferences = createMessageListPreferences(
+                            aggregationMode = MessageListAggregationMode.CONTACT,
+                        ),
+                    ),
+                )
+
+                // Assert
+                val state = awaitItem()
+                assertThat(state.content).isInstanceOf<MessageListContent.ContactGroups>()
+                assertThat((state.content as MessageListContent.ContactGroups).items).hasSize(1)
+            }
+        }
+
+    @Test
+    fun `process() should switch back to messages when the aggregation mode changes to NONE`() =
+        runTest {
+            // Arrange
+            val messages = listOf(createMessageUiItem())
+            val stateMachine = createStateMachineOnLoadedState(messages = messages)
+            advanceUntilIdle()
+
+            stateMachine.currentState.test {
+                // enforce correct state before acting.
+                assertThat(expectMostRecentItem().content).isInstanceOf<MessageListContent.Messages>()
+
+                // Act
+                stateMachine.process(
+                    event = MessageListEvent.UpdatePreferences(
+                        preferences = createMessageListPreferences(
+                            aggregationMode = MessageListAggregationMode.CONTACT,
+                        ),
+                    ),
+                )
+                assertThat(awaitItem().content).isInstanceOf<MessageListContent.ContactGroups>()
+
+                stateMachine.process(
+                    event = MessageListEvent.UpdatePreferences(
+                        preferences = createMessageListPreferences(
+                            aggregationMode = MessageListAggregationMode.NONE,
+                        ),
+                    ),
+                )
+
+                // Assert
+                assertThat(awaitItem().content).isInstanceOf<MessageListContent.Messages>()
+            }
+        }
+
+    @Test
+    fun `process() should keep the messages when contact aggregation is not available for the folder`() =
+        runTest {
+            // Arrange
+            val messages = listOf(createMessageUiItem())
+            val stateMachine = createStateMachineOnLoadingState(
+                preferences = createMessageListPreferences(
+                    aggregationMode = MessageListAggregationMode.CONTACT,
+                ),
+                folder = createFolder(type = FolderType.SENT),
+            )
+            advanceUntilIdle()
+            stateMachine.process(MessageListEvent.UpdateLoadingProgress(progress = 1f))
+            stateMachine.process(MessageListEvent.MessagesLoaded(messages = messages))
+            advanceUntilIdle()
+
+            // Act
+            val state = stateMachine.currentStateSnapshot
+
+            // Assert
+            assertThat(state).isInstanceOf<MessageListState.LoadedMessages>()
+            assertThat(state.content).isInstanceOf<MessageListContent.Messages>()
+        }
+    // endregion [Aggregation mode]
+
     // endregion [LoadingMessages state]
 
     // region [LoadedMessages state]

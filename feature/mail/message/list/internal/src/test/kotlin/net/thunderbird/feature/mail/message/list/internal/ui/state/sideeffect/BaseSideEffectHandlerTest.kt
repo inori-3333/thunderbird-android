@@ -7,6 +7,7 @@ import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
 import net.thunderbird.core.common.action.SwipeAction
 import net.thunderbird.core.common.action.SwipeActions
+import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListAggregationMode
 import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListDateTimeFormat
 import net.thunderbird.core.preference.display.visualSettings.message.list.UiDensity
 import net.thunderbird.feature.account.AccountIdFactory
@@ -80,6 +81,7 @@ open class BaseSideEffectHandlerTest {
         dateTimeFormat: MessageListDateTimeFormat = MessageListDateTimeFormat.Contextual,
         actionRequiringUserConfirmation: ImmutableSet<ActionRequiringUserConfirmation> = persistentSetOf(),
         colorizeBackgroundWhenRead: Boolean = false,
+        aggregationMode: MessageListAggregationMode = MessageListAggregationMode.NONE,
     ) = MessageListPreferences(
         density = density,
         groupConversations = groupConversations,
@@ -91,6 +93,7 @@ open class BaseSideEffectHandlerTest {
         dateTimeFormat = dateTimeFormat,
         actionRequiringUserConfirmation = actionRequiringUserConfirmation,
         colorizeBackgroundWhenRead = colorizeBackgroundWhenRead,
+        aggregationMode = aggregationMode,
     )
 
     protected fun createMetadata() = MessageListMetadata(
@@ -117,6 +120,7 @@ open class BaseSideEffectHandlerTest {
         subject = "subject",
         excerpt = "excerpt",
         formattedReceivedAt = "Jan 2026",
+        sortTimestamp = 1L,
         hasAttachments = false,
         starred = false,
         encrypted = false,

@@ -28,6 +28,7 @@ import kotlin.test.Ignore
 import kotlin.test.Test
 import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.collections.immutable.ImmutableSet
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toImmutableList
@@ -37,6 +38,7 @@ import net.thunderbird.core.common.action.SwipeActions
 import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListDateTimeFormat
 import net.thunderbird.core.preference.display.visualSettings.message.list.UiDensity
 import net.thunderbird.feature.account.AccountId
+import net.thunderbird.feature.mail.message.list.aggregation.model.ContactAggregationKey
 import net.thunderbird.feature.mail.message.list.internal.R
 import net.thunderbird.feature.mail.message.list.internal.ui.component.MessageListItemDefaults
 import net.thunderbird.feature.mail.message.list.internal.ui.component.template.TEST_TAG_MESSAGE_LIST_ROOT
@@ -45,11 +47,14 @@ import net.thunderbird.feature.mail.message.list.internal.ui.preview.MessagePrev
 import net.thunderbird.feature.mail.message.list.preferences.ActionRequiringUserConfirmation
 import net.thunderbird.feature.mail.message.list.preferences.MessageListPreferences
 import net.thunderbird.feature.mail.message.list.ui.component.atom.MESSAGE_ITEM_FAVOURITE_ICON_BUTTON_TEST_TAG
+import net.thunderbird.feature.mail.message.list.ui.component.organism.TEST_TAG_CONTACT_GROUP_ITEM_ROOT
 import net.thunderbird.feature.mail.message.list.ui.component.rememberMessageListScope
 import net.thunderbird.feature.mail.message.list.ui.event.MessageItemEvent
 import net.thunderbird.feature.mail.message.list.ui.event.MessageListEvent
 import net.thunderbird.feature.mail.message.list.ui.state.Avatar
+import net.thunderbird.feature.mail.message.list.ui.state.ContactGroupUiModel
 import net.thunderbird.feature.mail.message.list.ui.state.MessageItemUi
+import net.thunderbird.feature.mail.message.list.ui.state.MessageListContent
 import net.thunderbird.feature.mail.message.list.ui.state.MessageListFooter
 import net.thunderbird.feature.mail.message.list.ui.state.MessageListMetadata
 import net.thunderbird.feature.mail.message.list.ui.state.MessageListState
@@ -333,6 +338,123 @@ class MessageListScreenRendererTest : ComposeTest() {
         }
 
     @Test
+    fun `MessageListScreen-ContactGroup - should display the sender, address, subject and counts`() =
+        runComposeTest {
+            // Arrange
+            val message = MessagePreviewHelper.createMessage(
+                id = "msg-1",
+                senderName = "GitHub",
+                senderAddress = "notifications@github.com",
+                senderDisplayName = "GitHub",
+                subject = "[PR] Fix Android issue",
+            )
+            val group = createContactGroup(message = message, unreadCount = 3)
+
+            // Act
+            setupTestSubjectComposable(
+                messages = listOf(message),
+                content = MessageListContent.ContactGroups(items = persistentListOf(group)),
+            )
+
+            // Assert
+            onNodeWithText("GitHub").assertIsDisplayed()
+            onNodeWithText("notifications@github.com").assertIsDisplayed()
+            onNodeWithText("[PR] Fix Android issue").assertIsDisplayed()
+            onNodeWithText("3 unread").assertIsDisplayed()
+        }
+
+    @Test
+    fun `MessageListScreen-ContactGroup - when tap - should trigger dispatchEvent with OpenContactGroup`() =
+        runComposeTest {
+            // Arrange
+            val events = mutableListOf<MessageListEvent>()
+            val message = MessagePreviewHelper.createMessage(
+                senderName = "GitHub",
+                senderAddress = "notifications@github.com",
+                senderDisplayName = "GitHub",
+            )
+            val group = createContactGroup(message = message)
+
+            // Act
+            setupTestSubjectComposable(
+                messages = listOf(message),
+                dispatchEvent = { events.add(it) },
+                content = MessageListContent.ContactGroups(items = persistentListOf(group)),
+            )
+            onNodeWithTag(TEST_TAG_CONTACT_GROUP_ITEM_ROOT, useUnmergedTree = true).performClick()
+            waitForIdle()
+
+            // Assert
+            assertThat(events).containsExactly(
+                MessageListEvent.OpenContactGroup(ContactAggregationKey.EmailAddress("notifications@github.com")),
+            )
+        }
+
+    @Test
+    fun `MessageListScreen-ContactGroup - when swiping - should not trigger a swipe event`() =
+        runComposeTest {
+            // Arrange
+            val events = mutableListOf<MessageListEvent>()
+            val message = MessagePreviewHelper.createMessage(
+                senderName = "GitHub",
+                senderAddress = "notifications@github.com",
+                senderDisplayName = "GitHub",
+            )
+            val group = createContactGroup(message = message)
+
+            // Act
+            setupTestSubjectComposable(
+                messages = listOf(message),
+                dispatchEvent = { events.add(it) },
+                content = MessageListContent.ContactGroups(items = persistentListOf(group)),
+                metadata = createMetadata(
+                    swipeActions = persistentMapOf(
+                        message.account.id to SwipeActions(
+                            leftAction = SwipeAction.Delete,
+                            rightAction = SwipeAction.ToggleRead,
+                        ),
+                    ),
+                ),
+            )
+            onNodeWithTag(TEST_TAG_CONTACT_GROUP_ITEM_ROOT, useUnmergedTree = true)
+                .performTouchInput { swipeLeft() }
+            waitForIdle()
+
+            // Assert
+            assertThat(events.filterIsInstance<MessageItemEvent.OnSwipeMessage>()).isEmpty()
+        }
+
+    @Test
+    fun `MessageListScreen-ContactGroup - when the group resolved to a contact - should display the contact name`() =
+        runComposeTest {
+            // Arrange
+            val message = MessagePreviewHelper.createMessage(
+                senderName = "Zhang San",
+                senderAddress = "zhangsan@qq.com",
+                senderDisplayName = "Zhang San",
+            )
+            val senderIdentity = checkNotNull(message.senderIdentity)
+            val group = createContactGroup(
+                message = message,
+                key = ContactAggregationKey.AndroidContact(contactId = 42L),
+                title = "张三",
+                address = "zhangsan@qq.com",
+                addresses = setOf("zhangsan@qq.com", "zhangsan@company.com"),
+            )
+
+            // Act
+            setupTestSubjectComposable(
+                messages = listOf(message),
+                content = MessageListContent.ContactGroups(items = persistentListOf(group)),
+            )
+
+            // Assert
+            onNodeWithText("张三").assertIsDisplayed()
+            onNodeWithText("zhangsan@qq.com").assertIsDisplayed()
+            assertThat(senderIdentity.normalizedAddress).isEqualTo("zhangsan@qq.com")
+        }
+
+    @Test
     fun `MessageListScreen-MessageListItem - when tap - should trigger dispatchEvent with OnMessageClick`() =
         runComposeTest {
             // Arrange
@@ -493,10 +615,12 @@ class MessageListScreenRendererTest : ComposeTest() {
         dispatchEvent: (MessageListEvent) -> Unit = {},
         preferences: MessageListPreferences = createPreferences(),
         metadata: MessageListMetadata = createMetadata(),
+        content: MessageListContent = MessageListContent.Messages(items = messages.toImmutableList()),
         state: MessageListState = MessageListState.LoadedMessages(
             metadata = metadata,
             preferences = preferences,
             messages = messages.toImmutableList(),
+            content = content,
         ),
     ) {
         val renderer = MessageListScreenRenderer()
@@ -561,6 +685,33 @@ class MessageListScreenRendererTest : ComposeTest() {
         MessagePreviewHelper.createMessage(id = "msg-1"),
         MessagePreviewHelper.createMessage(id = "msg-2", state = MessageItemUi.State.Read),
     )
+
+    private fun createContactGroup(
+        message: MessageItemUi,
+        messageCount: Int = 1,
+        unreadCount: Int = 1,
+        key: ContactAggregationKey? = null,
+        title: String? = null,
+        address: String? = null,
+        addresses: Set<String>? = null,
+    ): ContactGroupUiModel {
+        val senderIdentity = checkNotNull(message.senderIdentity)
+        return ContactGroupUiModel(
+            key = key ?: ContactAggregationKey.EmailAddress(normalizedAddress = senderIdentity.normalizedAddress),
+            title = title ?: senderIdentity.displayName ?: message.senders.displayName,
+            address = address ?: senderIdentity.visibleAddress,
+            addresses = addresses ?: setOf(senderIdentity.normalizedAddress),
+            avatar = message.senders.avatar ?: Avatar.Monogram(value = "G"),
+            color = message.senders.color,
+            latestMessage = message,
+            messageCount = messageCount,
+            messageCountLabel = "$messageCount messages",
+            unreadCount = unreadCount,
+            unreadCountLabel = if (unreadCount == 0) null else "$unreadCount unread",
+            hasStarredMessage = false,
+            accountIds = setOf(message.account.id),
+        )
+    }
 }
 
 @Suppress("MagicNumber")
