@@ -22,7 +22,7 @@
 关键既有约束（决定了实现方式）：
 
 - `MessageItemUi.senders.displayName` 被 legacy 填成**邮箱地址**（`MessageListItemMapper` 用 `displayAddress`），群组标题需要额外的 friendly name 字段。
-- 界面模式入口是 legacy 的排序弹窗 `SortCriteriaMenuList()`，排序 action view 由 `prepareSortMenu()` 挂载。
+- legacy 排序 action view 由 `prepareSortMenu()` 挂载；显示设置页是 `general_settings.xml` + `GeneralSettingsDataStore`（`PreferenceDataStore` 适配到 `GeneralSettingsManager`）。
 - `MessageListState` 有 5 个子类、96 处构造点 → 新字段必须给默认值，否则要改 96 处。
 
 ---
@@ -100,7 +100,8 @@ ContactIdentityResolver.resolve(senders) → cache 命中 / ContentResolver 批�
 2. **无合法 From 的邮件**用 `UnknownSender(messageId)`，每封一个组，不会合并成 `Unknown`。
 3. **聚合输入是当前完整 loaded list**（`state.messages`），不是增量 page。
 4. **排序**：`latestMessage.sortTimestamp` 降序；`latestMessage` 取组内 `sortTimestamp` **最大值**（不依赖输入顺序）。
-5. **Sent / Drafts / Outbox 自动回退普通列表**：`MessageListMetadata.contactAggregationAvailable` 由 folder type 计算，这些文件夹不显示入口，切换时 `ContentFactory` 也会兜底为 `NONE`。
+5. **Sent / Drafts / Outbox 自动回退普通列表**：`MessageListMetadata.contactAggregationAvailable` 由 folder type 计算，这些文件夹不显示开关入口，切换时 `ContentFactory` 也会兜底为 `NONE`。
+5b. **入口是开关，不是排序方式**：`设置 > 常规 > 显示 > 按发件人聚合邮件` 一个 `CheckBoxPreference`，外加邮件列表三点菜单里一个 `checkable` 项指向同一个配置（`sender_aggregation` ↔ `aggregationMode`）。两处写入都经过 `GeneralSettingsManager.update {}`，订阅者回流到 `MessageListPreferences`，所以设置页与菜单永远一致。排序弹窗里只保留排序，不再混入显示模式。
 6. **群组行动作受限**：群组行不经过 `MessageListSwipeableItem`，不能 swipe / star / select，点击只发 `OpenContactGroup`。
 7. **配置**沿用现有 preference 框架（全局，默认 `NONE`）；顺带修复了 `DefaultMessageListPreferencesManager.write()` 遗漏 `dateTimeFormat` 的问题。
 
