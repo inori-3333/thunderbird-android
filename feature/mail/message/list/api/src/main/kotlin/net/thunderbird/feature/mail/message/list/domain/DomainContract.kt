@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import net.thunderbird.components.core.outcome.Outcome
 import net.thunderbird.core.common.action.SwipeActions
+import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListAggregationMode
 import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.mail.folder.api.FolderServerId
 import net.thunderbird.feature.mail.folder.api.RemoteFolder
@@ -51,6 +52,10 @@ interface DomainContract {
                 accountId: AccountId?,
                 sortCriteria: SortCriteria,
             ): Outcome<UpdateSortCriteriaOutcome.Success, UpdateSortCriteriaOutcome.Error>
+        }
+
+        fun interface SetMessageListAggregationMode {
+            suspend operator fun invoke(mode: MessageListAggregationMode)
         }
     }
 }

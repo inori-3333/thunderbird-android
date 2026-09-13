@@ -1,7 +1,11 @@
 package net.thunderbird.feature.mail.message.list.ui.event
 
 import net.thunderbird.core.common.action.SwipeActions
+import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListAggregationMode
 import net.thunderbird.feature.account.AccountId
+import net.thunderbird.feature.mail.message.list.aggregation.model.ContactAggregationKey
+import net.thunderbird.feature.mail.message.list.aggregation.model.ContactIdentity
+import net.thunderbird.feature.mail.message.list.aggregation.model.SenderIdentity
 import net.thunderbird.feature.mail.message.list.domain.model.SortCriteria
 import net.thunderbird.feature.mail.message.list.preferences.MessageListPreferences
 import net.thunderbird.feature.mail.message.list.ui.state.MessageItemUi
@@ -100,6 +104,36 @@ sealed interface MessageListEvent {
      * This is typically used to load more messages.
      */
     data object OnFooterClick : UserEvent
+
+    /**
+     * Event triggered when the user changes the way messages are grouped for display.
+     *
+     * The selection is persisted by the message list. This event only carries the desired mode. The
+     * updated preferences are applied again via [UpdatePreferences] once they have been saved.
+     *
+     * @param mode The aggregation mode the user selected.
+     */
+    data class SetAggregationMode(val mode: MessageListAggregationMode) : UserEvent
+
+    /**
+     * Event triggered when the user opens the messages of a sender group.
+     *
+     * @param key The identity of the sender group that should be opened.
+     */
+    data class OpenContactGroup(val key: ContactAggregationKey) : UserEvent
+
+    /**
+     * A system event indicating that the senders of the currently loaded messages have been resolved to the
+     * persons they belong to.
+     *
+     * This is an enhancement: the message list is displayed with the sender addresses until the identities
+     * are available.
+     *
+     * @param contactIdentities The resolved identity for every sender.
+     */
+    data class ContactIdentitiesResolved(
+        val contactIdentities: Map<SenderIdentity, ContactIdentity>,
+    ) : SystemEvent
 
     /**
      * Event triggered when the user requests to load the next page of messages in the message list.
