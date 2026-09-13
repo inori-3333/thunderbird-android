@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -82,6 +83,7 @@ import app.k9mail.legacy.message.controller.SimpleMessagingListener
 import app.k9mail.legacy.ui.folder.FolderNameFormatter
 import com.fsck.k9.K9
 import com.fsck.k9.activity.FolderInfoHolder
+import com.fsck.k9.activity.MessageHomeActivity
 import com.fsck.k9.activity.MessageSearchActivity
 import com.fsck.k9.controller.MessagingControllerWrapper
 import com.fsck.k9.fragment.ConfirmationDialogFragment
@@ -138,6 +140,7 @@ import net.thunderbird.components.core.outcome.Outcome
 import net.thunderbird.core.preference.GeneralSettingsManager
 import net.thunderbird.core.preference.interaction.InteractionSettings
 import net.thunderbird.components.ui.bolt.atom.ClickableSurface
+import net.thunderbird.components.ui.bolt.atom.button.RadioButton
 import net.thunderbird.components.ui.bolt.atom.icon.Icon
 import net.thunderbird.components.ui.bolt.atom.icon.Icons
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
@@ -147,6 +150,7 @@ import net.thunderbird.feature.account.AccountIdFactory
 import net.thunderbird.feature.account.UnifiedAccountId
 import net.thunderbird.feature.account.avatar.AvatarMonogramCreator
 import net.thunderbird.feature.changelog.internal.RecentChangesViewModel
+import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListAggregationMode
 import net.thunderbird.feature.mail.folder.api.OutboxFolderManager
 import net.thunderbird.feature.mail.message.list.domain.model.SortCriteria
 import net.thunderbird.feature.mail.message.list.domain.model.SortType
@@ -169,7 +173,11 @@ import net.thunderbird.feature.notification.api.ui.dialog.ErrorNotificationsDial
 import net.thunderbird.feature.notification.api.ui.dialog.ErrorNotificationsDialogFragmentFactory
 import net.thunderbird.feature.search.legacy.LocalMessageSearch
 import net.thunderbird.feature.search.legacy.SearchAccount
+import net.thunderbird.feature.search.legacy.api.MessageSearchField
+import net.thunderbird.feature.search.legacy.api.SearchCondition
+import net.thunderbird.feature.search.legacy.api.SearchAttribute
 import net.thunderbird.feature.search.legacy.serialization.LocalMessageSearchSerializer
+import net.thunderbird.feature.mail.message.list.R as MessageListR
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.core.parameter.parametersOf
@@ -2453,9 +2461,40 @@ class MessageListFragment :
                 openMessage(messageReference)
             }
 
+            is MessageListEffect.OpenContactGroup -> openContactGroup(effect.senderAddresses)
+
             MessageListEffect.TriggerOnFooterClicked -> onFooterClicked()
             else -> Unit
         }
+    }
+
+    /**
+     * Displays the messages of a single sender by reusing the existing local search capability.
+     *
+     * A sender group can cover several addresses when it was resolved to an Android contact. The search then
+     * matches any of them. The search is limited to the accounts of the current message list, but not to the
+     * currently displayed folder, so that a sender group is complete even when its messages are spread over
+     * several folders.
+     */
+    private fun openContactGroup(senderAddresses: List<String>) {
+        if (senderAddresses.isEmpty()) return
+
+        // Several addresses are combined with OR: a message has to come from any of them, not from all.
+        val search = LocalMessageSearch().apply {
+            isManualSearch = false
+            senderAddresses.forEach { address ->
+                or(SearchCondition(MessageSearchField.SENDER, SearchAttribute.CONTAINS, address))
+            }
+        }
+
+        accountUuids.forEach { uuid -> search.addAccountUuid(uuid) }
+
+        MessageHomeActivity.actionDisplaySearch(
+            context = requireContext(),
+            search = search,
+            noThreading = false,
+            newTask = false,
+        )
     }
 
     private fun showComposeDropdown(anchor: View, lifecycleOwner: LifecycleOwner, stateOwner: SavedStateRegistryOwner) {
@@ -2498,6 +2537,7 @@ class MessageListFragment :
     private fun SortCriteriaMenuList() {
         val (state, dispatch) = viewModel.observeWithoutEffect()
         val metadata = state.value.metadata
+        val preferences = state.value.preferences
         val folder = metadata.folder
         val accountId = folder?.account?.id?.takeIf { it != UnifiedAccountId }
         val primarySortTypes = metadata.availablePrimarySortTypes
@@ -2506,41 +2546,93 @@ class MessageListFragment :
             metadata.sortCriteriaPerAccount.getValue(accountId)
         }
 
-        Surface(
-            modifier = Modifier.padding(BoltTheme.spacings.default),
-            color = BoltTheme.colors.surfaceContainer,
-            tonalElevation = BoltTheme.elevations.level2,
-            shape = BoltTheme.shapes.medium,
+        Column(
+            modifier = Modifier
+                .verticalScroll(state = rememberScrollState())
+                .heightIn(max = 480.dp),
         ) {
-            SortTypeList(
-                currentSortCriteria = currentSortCriteria,
-                primarySortTypes = primarySortTypes,
-                secondarySortTypes = secondarySortTypes,
-                isSelected = { sortType -> currentSortCriteria.primary == sortType },
-                onSortTypeClick = { sortType ->
-                    dispatch(
-                        MessageListEvent.ChangeSortCriteria(
-                            accountId = accountId,
-                            sortCriteria = currentSortCriteria.copy(
-                                primary = sortType,
-                                secondary = when {
-                                    sortType in SortCriteria.SecondaryNotRequiredForSortTypes -> null
-                                    else -> SortType.DateDesc
-                                },
+            Surface(
+                modifier = Modifier.padding(BoltTheme.spacings.default),
+                color = BoltTheme.colors.surfaceContainer,
+                tonalElevation = BoltTheme.elevations.level2,
+                shape = BoltTheme.shapes.medium,
+            ) {
+                SortTypeList(
+                    currentSortCriteria = currentSortCriteria,
+                    primarySortTypes = primarySortTypes,
+                    secondarySortTypes = secondarySortTypes,
+                    isSelected = { sortType -> currentSortCriteria.primary == sortType },
+                    onSortTypeClick = { sortType ->
+                        dispatch(
+                            MessageListEvent.ChangeSortCriteria(
+                                accountId = accountId,
+                                sortCriteria = currentSortCriteria.copy(
+                                    primary = sortType,
+                                    secondary = when {
+                                        sortType in SortCriteria.SecondaryNotRequiredForSortTypes -> null
+                                        else -> SortType.DateDesc
+                                    },
+                                ),
                             ),
-                        ),
+                        )
+                    },
+                    onSecondarySortTypeClick = { sortType ->
+                        dispatch(
+                            MessageListEvent.ChangeSortCriteria(
+                                accountId = accountId,
+                                sortCriteria = currentSortCriteria.copy(secondary = sortType),
+                            ),
+                        )
+                    },
+                )
+            }
+
+            if (metadata.contactAggregationAvailable && preferences != null) {
+                Surface(
+                    modifier = Modifier.padding(horizontal = BoltTheme.spacings.default),
+                    color = BoltTheme.colors.surfaceContainer,
+                    tonalElevation = BoltTheme.elevations.level2,
+                    shape = BoltTheme.shapes.medium,
+                ) {
+                    AggregationModeList(
+                        currentMode = preferences.aggregationMode,
+                        onModeClick = { mode -> dispatch(MessageListEvent.SetAggregationMode(mode)) },
                     )
-                },
-                onSecondarySortTypeClick = { sortType ->
-                    dispatch(
-                        MessageListEvent.ChangeSortCriteria(
-                            accountId = accountId,
-                            sortCriteria = currentSortCriteria.copy(secondary = sortType),
-                        ),
-                    )
-                },
-            )
+                }
+            }
         }
+    }
+
+    /**
+     * Displays the message list display modes.
+     *
+     * Contact aggregation is only offered for folders that contain messages of other people.
+     */
+    @Composable
+    private fun AggregationModeList(
+        currentMode: MessageListAggregationMode,
+        onModeClick: (MessageListAggregationMode) -> Unit,
+    ) {
+        Column(modifier = Modifier.padding(vertical = BoltTheme.spacings.default)) {
+            SortTypeDivider(label = stringResource(MessageListR.string.message_list_aggregation_mode_label))
+            MessageListAggregationMode.entries.forEach { mode ->
+                RadioButton(
+                    label = stringResource(mode.labelResId()),
+                    selected = mode == currentMode,
+                    onClick = { onModeClick(mode) },
+                    modifier = Modifier.padding(
+                        vertical = BoltTheme.spacings.default,
+                        horizontal = BoltTheme.spacings.double,
+                    ),
+                )
+            }
+        }
+    }
+
+    @StringRes
+    private fun MessageListAggregationMode.labelResId(): Int = when (this) {
+        MessageListAggregationMode.NONE -> MessageListR.string.message_list_aggregation_mode_normal
+        MessageListAggregationMode.CONTACT -> MessageListR.string.message_list_aggregation_mode_contact
     }
 
     companion object Factory : MessageListFragmentBridgeContract.Factory {

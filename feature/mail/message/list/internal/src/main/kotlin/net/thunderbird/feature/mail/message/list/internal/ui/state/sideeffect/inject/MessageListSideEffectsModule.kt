@@ -7,6 +7,7 @@ import net.thunderbird.feature.mail.message.list.internal.ui.state.sideeffect.Lo
 import net.thunderbird.feature.mail.message.list.internal.ui.state.sideeffect.LoadPreferencesSideEffect
 import net.thunderbird.feature.mail.message.list.internal.ui.state.sideeffect.LoadSortCriteriaStateSideEffectHandler
 import net.thunderbird.feature.mail.message.list.internal.ui.state.sideeffect.LoadSwipeActionsStateSideEffectHandler
+import net.thunderbird.feature.mail.message.list.internal.ui.state.sideeffect.ResolveContactIdentitiesSideEffect
 import net.thunderbird.feature.mail.message.list.internal.ui.state.sideeffect.SetAggregationModeSideEffect
 import net.thunderbird.feature.mail.message.list.internal.ui.state.sideeffect.legacy.LoadMessagesLegacySideEffect
 import net.thunderbird.feature.mail.message.list.internal.ui.state.sideeffect.ui.OpenContactGroupSideEffect
@@ -75,5 +76,11 @@ internal val messageListSideEffectsModule = module {
             )
         },
         { OpenContactGroupSideEffect.Factory(logger = get()) },
+        {
+            ResolveContactIdentitiesSideEffect.Factory(
+                logger = get(),
+                contactIdentityResolver = get(),
+            )
+        },
     )
 }
