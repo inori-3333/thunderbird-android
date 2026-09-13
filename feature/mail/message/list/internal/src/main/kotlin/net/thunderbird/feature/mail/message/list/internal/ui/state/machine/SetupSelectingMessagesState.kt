@@ -33,6 +33,7 @@ internal fun StateMachineBuilder<MessageListState, MessageListEvent>.selectingMe
                 metadata = state.metadata,
                 preferences = state.preferences,
                 messages = state.messages.map { message -> message.copy(selected = false) }.toPersistentList(),
+                content = state.content,
             )
         }
 

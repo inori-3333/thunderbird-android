@@ -25,6 +25,7 @@ import net.thunderbird.feature.mail.message.list.domain.model.SortType
  * @property footer The footer text to display at the bottom of the message list.
  * @property showAccountIndicator Whether to show the account indicator in the message list.
  * @property paging The pagination state of the message list.
+ * @property contactAggregationAvailable Whether contact aggregation can be used for the current folder.
  */
 @Immutable
 data class MessageListMetadata(
@@ -39,6 +40,7 @@ data class MessageListMetadata(
     val footer: MessageListFooter = MessageListFooter(),
     val showAccountIndicator: Boolean = false,
     val paging: PaginationUi = PaginationUi(),
+    val contactAggregationAvailable: Boolean = true,
 ) {
     /**
      * Indicates whether the message list metadata contains all required data to display the message list.

@@ -2,6 +2,7 @@ package net.thunderbird.feature.mail.message.list.ui.state
 
 import androidx.compose.runtime.Immutable
 import kotlinx.collections.immutable.toPersistentList
+import net.thunderbird.feature.mail.message.list.aggregation.model.SenderIdentity
 
 /**
  * Represents the UI state of a single message item in a message list.
@@ -17,9 +18,12 @@ import kotlinx.collections.immutable.toPersistentList
  * @property account The account to which this message belongs.
  * @property senders The composed representation of the message sender(s) with display name,
  *  styling, and avatar.
+ * @property senderIdentity The identity of the message sender, used to aggregate messages by sender.
+ *  `null` when the sender is unknown.
  * @property subject The subject line of the message.
  * @property excerpt A short snippet or preview of the message body.
  * @property formattedReceivedAt A user-friendly, formatted string representing when the message was received.
+ * @property sortTimestamp The timestamp (in milliseconds since the epoch) that is used to sort the message.
  * @property hasAttachments Whether the message contains one or more attachments.
  * @property starred A flag indicating whether the message is marked as starred/important.
  * @property encrypted A flag indicating whether the message is encrypted.
@@ -37,9 +41,11 @@ data class MessageItemUi(
     val messageReference: String,
     val account: Account,
     val senders: ComposedAddressUi,
+    val senderIdentity: SenderIdentity? = null,
     val subject: String,
     val excerpt: String,
     val formattedReceivedAt: String,
+    val sortTimestamp: Long,
     val hasAttachments: Boolean,
     val starred: Boolean,
     val encrypted: Boolean,

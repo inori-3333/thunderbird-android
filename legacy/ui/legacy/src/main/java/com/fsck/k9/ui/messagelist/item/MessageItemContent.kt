@@ -12,6 +12,7 @@ import kotlin.time.ExperimentalTime
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toPersistentList
 import net.thunderbird.feature.account.avatar.AvatarMonogramCreator
+import net.thunderbird.feature.mail.message.list.aggregation.model.createSenderIdentityOrNull
 import net.thunderbird.feature.mail.message.list.preferences.MessageListPreferences
 import net.thunderbird.feature.mail.message.list.ui.component.config.MessageItemAccountIndicator
 import net.thunderbird.feature.mail.message.list.ui.component.organism.ReadMessageItem
@@ -137,9 +138,14 @@ internal fun MessageListItem.toMessageItemUi(
         },
         color = Color(contactColor),
     ),
+    senderIdentity = createSenderIdentityOrNull(
+        address = displayAddress?.address,
+        displayName = displayName.toString(),
+    ),
     subject = subject ?: "n/a",
     excerpt = previewText,
     formattedReceivedAt = displayMessageDateTime,
+    sortTimestamp = messageDate,
     hasAttachments = hasAttachments,
     starred = isStarred,
     encrypted = isMessageEncrypted,

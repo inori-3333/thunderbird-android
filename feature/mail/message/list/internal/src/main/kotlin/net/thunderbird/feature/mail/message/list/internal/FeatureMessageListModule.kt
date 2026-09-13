@@ -3,12 +3,16 @@ package net.thunderbird.feature.mail.message.list.internal
 import net.thunderbird.core.common.inject.getList
 import net.thunderbird.feature.mail.message.list.LocalDeleteOperationDecider
 import net.thunderbird.feature.mail.message.list.LocalMessageUidPrefixProvider
+import net.thunderbird.feature.mail.message.list.aggregation.ContactIdentityResolver
 import net.thunderbird.feature.mail.message.list.domain.DomainContract
+import net.thunderbird.feature.mail.message.list.internal.aggregation.ContactMessageAggregator
+import net.thunderbird.feature.mail.message.list.internal.aggregation.DefaultContactIdentityResolver
 import net.thunderbird.feature.mail.message.list.internal.domain.usecase.BuildSwipeActions
 import net.thunderbird.feature.mail.message.list.internal.domain.usecase.CreateArchiveFolder
 import net.thunderbird.feature.mail.message.list.internal.domain.usecase.GetAccountFolders
 import net.thunderbird.feature.mail.message.list.internal.domain.usecase.GetMessageListPreferences
 import net.thunderbird.feature.mail.message.list.internal.domain.usecase.GetSortCriteriaPerAccount
+import net.thunderbird.feature.mail.message.list.internal.domain.usecase.SaveMessageListAggregationMode
 import net.thunderbird.feature.mail.message.list.internal.domain.usecase.SetArchiveFolder
 import net.thunderbird.feature.mail.message.list.internal.ui.MessageListScreenRenderer
 import net.thunderbird.feature.mail.message.list.internal.ui.MessageListViewModel
@@ -64,6 +68,20 @@ val featureMessageListModule = module {
             interactionPreferenceManager = get(),
         )
     }
+    factory<DomainContract.UseCase.SetMessageListAggregationMode> {
+        SaveMessageListAggregationMode(
+            logger = get(),
+            displayPreferenceManager = get(),
+        )
+    }
+    single { ContactMessageAggregator() }
+    single<ContactIdentityResolver> {
+        DefaultContactIdentityResolver(
+            contactRepository = get(),
+            contactPermissionResolver = get(),
+            logger = get(),
+        )
+    }
     factory<DomainContract.UseCase.GetSortCriteriaPerAccount> {
         GetSortCriteriaPerAccount(
             accountManager = get(),
@@ -79,6 +97,7 @@ val featureMessageListModule = module {
             messageListStateMachineFactory = get(),
             stateSideEffectHandlersFactories = getList { parameters },
             stringsResourceManager = get(),
+            contactMessageAggregator = get(),
         )
     }
     single<LocalDeleteOperationDecider> { DefaultLocalDeleteOperationDecider() }

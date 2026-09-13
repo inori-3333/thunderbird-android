@@ -15,6 +15,7 @@ import net.thunderbird.feature.mail.message.list.ui.state.MessageListState
  *   after the loading animation completes.
  */
 internal fun StateMachineBuilder<MessageListState, MessageListEvent>.loadingMessagesState(
+    contentFactory: ContentFactory,
     dispatch: (MessageListEvent) -> Unit,
 ) {
     state<MessageListState.LoadingMessages> {
@@ -22,15 +23,32 @@ internal fun StateMachineBuilder<MessageListState, MessageListEvent>.loadingMess
             if (event.progress == 1f) {
                 dispatch(MessageListEvent.MessagesLoaded(event.messages))
             }
-            state.copy(progress = event.progress, messages = event.messages.toPersistentList())
+            val messages = event.messages.toPersistentList()
+            state.copy(
+                progress = event.progress,
+                messages = messages,
+                content = contentFactory(
+                    state.metadata,
+                    state.preferences.aggregationMode,
+                    messages,
+                    state.contactIdentities,
+                ),
+            )
         }
         transition<MessageListEvent.MessagesLoaded>(
             guard = { state, _ -> state.progress == 1f },
         ) { state, event ->
+            val messages = event.messages.toPersistentList()
             MessageListState.LoadedMessages(
                 metadata = state.metadata,
                 preferences = state.preferences,
-                messages = event.messages.toPersistentList(),
+                messages = messages,
+                content = contentFactory(
+                    state.metadata,
+                    state.preferences.aggregationMode,
+                    messages,
+                    state.contactIdentities,
+                ),
             )
         }
     }

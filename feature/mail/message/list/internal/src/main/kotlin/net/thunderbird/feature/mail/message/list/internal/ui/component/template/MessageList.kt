@@ -4,6 +4,7 @@ import androidx.compose.animation.core.snap
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -20,17 +21,25 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.lifecycle.compose.LifecycleStartEffect
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
+import net.thunderbird.core.common.action.SwipeActions
+import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.mail.message.list.internal.ui.component.MessageListItem
 import net.thunderbird.feature.mail.message.list.internal.ui.component.organism.MessageListFooter
 import net.thunderbird.feature.mail.message.list.internal.ui.component.organism.MessageListSwipeableItem
+import net.thunderbird.feature.mail.message.list.preferences.MessageListPreferences
 import net.thunderbird.feature.mail.message.list.ui.component.MessageListScope
 import net.thunderbird.feature.mail.message.list.ui.component.ScrollEvent
+import net.thunderbird.feature.mail.message.list.ui.component.config.MessageItemAccountIndicator
+import net.thunderbird.feature.mail.message.list.ui.component.organism.ContactGroupItem
 import net.thunderbird.feature.mail.message.list.ui.event.MessageItemEvent
 import net.thunderbird.feature.mail.message.list.ui.event.MessageListEvent
+import net.thunderbird.feature.mail.message.list.ui.state.ContactGroupUiModel
 import net.thunderbird.feature.mail.message.list.ui.state.MessageItemUi
+import net.thunderbird.feature.mail.message.list.ui.state.MessageListContent
 import net.thunderbird.feature.mail.message.list.ui.state.MessageListState
 import net.thunderbird.feature.mail.message.list.ui.state.PaginationUi
 
@@ -54,36 +63,21 @@ internal fun MessageListScope.MessageList(
         state = listState,
         contentPadding = PaddingValues(bottom = BoltTheme.sizes.large),
     ) {
-        items(
-            items = state.messages,
-            key = { message -> message.id },
-        ) { message ->
-            val messageSwipeActions = swipeActions[message.account.id]
-            val preferences = state.preferences ?: return@items
-            MessageListSwipeableItem(message, messageSwipeActions, dispatchEvent) { accessibilityState ->
-                MessageListItem(
-                    message = message,
-                    showAccountIndicator = showAccountIndicator,
-                    preferences = preferences,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .semantics(mergeDescendants = true) {
-                            stateDescription = accessibilityState.stateDescription(message)
-                        }
-                        .focusProperties {
-                            // TODO: Need improvement. Once the `MessageHomeActivity.onCustomKeyDown` is executed
-                            //  the focus go back to the toolbar's navigation button.
-                            //  We may replace the `MessageHomeActivity.onCustomKeyDown` with a modifier such
-                            //  as onPreviewKeyEvent in the future as well.
-                            onEnter = { dispatchEvent(MessageItemEvent.OnFocusEnter(message)) }
-                            onExit = { dispatchEvent(MessageItemEvent.OnFocusExit(message)) }
-                        },
-                    onClick = { dispatchEvent(MessageItemEvent.OnMessageClick(message)) },
-                    onLongClick = { dispatchEvent(MessageItemEvent.ToggleSelectMessages(message)) },
-                    onAvatarClick = { dispatchEvent(MessageItemEvent.ToggleSelectMessages(message)) },
-                    onFavouriteClick = { dispatchEvent(MessageItemEvent.ToggleFavourite(message)) },
-                )
-            }
+        when (val content = state.content) {
+            is MessageListContent.Messages -> messageListItems(
+                messages = content.items,
+                swipeActions = swipeActions,
+                showAccountIndicator = showAccountIndicator,
+                preferences = state.preferences,
+                dispatchEvent = dispatchEvent,
+            )
+
+            is MessageListContent.ContactGroups -> contactGroupItems(
+                groups = content.items,
+                showAccountIndicator = showAccountIndicator,
+                preferences = state.preferences,
+                dispatchEvent = dispatchEvent,
+            )
         }
 
         if (state.metadata.footer.text.isNotBlank()) {
@@ -91,6 +85,81 @@ internal fun MessageListScope.MessageList(
                 MessageListFooter(state, dispatchEvent, Modifier.animateItem(placementSpec = snap()))
             }
         }
+    }
+}
+
+/**
+ * Displays the regular message rows of the message list.
+ */
+@Suppress("LongParameterList")
+private fun LazyListScope.messageListItems(
+    messages: ImmutableList<MessageItemUi>,
+    swipeActions: ImmutableMap<AccountId, SwipeActions>,
+    showAccountIndicator: Boolean,
+    preferences: MessageListPreferences?,
+    dispatchEvent: (MessageListEvent) -> Unit,
+) {
+    items(
+        items = messages,
+        key = { message -> message.id },
+    ) { message ->
+        val messageSwipeActions = swipeActions[message.account.id]
+        val currentPreferences = preferences ?: return@items
+        MessageListSwipeableItem(message, messageSwipeActions, dispatchEvent) { accessibilityState ->
+            MessageListItem(
+                message = message,
+                showAccountIndicator = showAccountIndicator,
+                preferences = currentPreferences,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics(mergeDescendants = true) {
+                        stateDescription = accessibilityState.stateDescription(message)
+                    }
+                    .focusProperties {
+                        // TODO: Need improvement. Once the `MessageHomeActivity.onCustomKeyDown` is executed
+                        //  the focus go back to the toolbar's navigation button.
+                        //  We may replace the `MessageHomeActivity.onCustomKeyDown` with a modifier such
+                        //  as onPreviewKeyEvent in the future as well.
+                        onEnter = { dispatchEvent(MessageItemEvent.OnFocusEnter(message)) }
+                        onExit = { dispatchEvent(MessageItemEvent.OnFocusExit(message)) }
+                    },
+                onClick = { dispatchEvent(MessageItemEvent.OnMessageClick(message)) },
+                onLongClick = { dispatchEvent(MessageItemEvent.ToggleSelectMessages(message)) },
+                onAvatarClick = { dispatchEvent(MessageItemEvent.ToggleSelectMessages(message)) },
+                onFavouriteClick = { dispatchEvent(MessageItemEvent.ToggleFavourite(message)) },
+            )
+        }
+    }
+}
+
+/**
+ * Displays the sender groups of the message list while contact aggregation is active.
+ *
+ * Sender groups are not messages, so message level actions such as swiping, starring or selecting are not
+ * available for them.
+ */
+private fun LazyListScope.contactGroupItems(
+    groups: ImmutableList<ContactGroupUiModel>,
+    showAccountIndicator: Boolean,
+    preferences: MessageListPreferences?,
+    dispatchEvent: (MessageListEvent) -> Unit,
+) {
+    items(
+        items = groups,
+        key = { group -> group.key.toString() },
+    ) { group ->
+        val currentPreferences = preferences ?: return@items
+        ContactGroupItem(
+            group = group,
+            preferences = currentPreferences,
+            accountIndicator = if (showAccountIndicator) {
+                MessageItemAccountIndicator(color = group.latestMessage.account.color)
+            } else {
+                null
+            },
+            onClick = { dispatchEvent(MessageListEvent.OpenContactGroup(group.key)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

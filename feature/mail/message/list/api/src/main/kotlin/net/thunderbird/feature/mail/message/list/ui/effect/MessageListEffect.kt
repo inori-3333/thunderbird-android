@@ -101,6 +101,16 @@ sealed interface MessageListEffect {
 
     data class OpenMessage(val message: MessageItemUi) : MessageListEffect
 
+    /**
+     * Effect to open the message list of a single sender group.
+     *
+     * Carrying the addresses instead of a search query keeps the search implementation out of this feature.
+     *
+     * @param senderAddresses The addresses whose messages should be displayed. Contains more than one entry
+     *  when the group was resolved to an Android contact with several addresses.
+     */
+    data class OpenContactGroup(val senderAddresses: List<String>) : MessageListEffect
+
     // region [ Legacy Support ]
     data object TriggerOnFooterClicked : MessageListEffect
     // endregion [ Legacy Support ]

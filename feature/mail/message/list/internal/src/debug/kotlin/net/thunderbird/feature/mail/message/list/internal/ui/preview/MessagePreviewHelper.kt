@@ -2,19 +2,24 @@ package net.thunderbird.feature.mail.message.list.internal.ui.preview
 
 import androidx.compose.ui.graphics.Color
 import kotlinx.collections.immutable.persistentListOf
+import net.thunderbird.feature.mail.message.list.aggregation.model.createSenderIdentityOrNull
 import net.thunderbird.feature.mail.message.list.ui.state.Account
 import net.thunderbird.feature.mail.message.list.ui.state.Avatar
 import net.thunderbird.feature.mail.message.list.ui.state.ComposedAddressUi
 import net.thunderbird.feature.mail.message.list.ui.state.MessageItemUi
 
 internal object MessagePreviewHelper {
+    @Suppress("LongParameterList")
     fun createMessage(
         id: String = "msg-1",
         state: MessageItemUi.State = MessageItemUi.State.Unread,
         senderName: String = "Alice Johnson <alice@example.com>",
+        senderAddress: String? = "alice@example.com",
+        senderDisplayName: String? = "Alice Johnson",
         subject: String = "Weekly Team Sync",
         excerpt: String = "Hi team, let's discuss the progress on the new feature and plan next steps.",
         formattedReceivedAt: String = "2:34 PM",
+        sortTimestamp: Long = 0L,
         starred: Boolean = false,
         answered: Boolean = false,
         forwarded: Boolean = false,
@@ -32,9 +37,14 @@ internal object MessagePreviewHelper {
             avatar = Avatar.Monogram(senderName.first().toString()),
             color = Color.Green,
         ),
+        senderIdentity = createSenderIdentityOrNull(
+            address = senderAddress,
+            displayName = senderDisplayName,
+        ),
         subject = subject,
         excerpt = excerpt,
         formattedReceivedAt = formattedReceivedAt,
+        sortTimestamp = sortTimestamp,
         hasAttachments = hasAttachments,
         starred = starred,
         encrypted = encrypted,

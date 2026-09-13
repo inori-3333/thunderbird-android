@@ -28,4 +28,15 @@
     <string name="swipe_action_spam">Spam</string>
     <string name="swipe_action_move">Move…</string>
     <string name="actionbar_selected">%d selected</string>
+
+    <!--  Contact aggregation  -->
+    <string name="message_list_aggregation_mode_label">Message display</string>
+    <string name="message_list_aggregation_mode_normal">Normal list</string>
+    <string name="message_list_aggregation_mode_contact">Group by sender</string>
+    <string name="message_list_contact_group_unknown_sender">Unknown sender</string>
+    <string name="message_list_contact_group_unnamed_sender">No name</string>
+    <string name="message_list_contact_group_message_count">%d messages</string>
+    <string name="message_list_contact_group_unread_count">%d unread</string>
+    <string name="message_list_contact_group_state_read_description">Read</string>
+    <string name="message_list_contact_group_state_unread_description">Unread</string>
 </resources>

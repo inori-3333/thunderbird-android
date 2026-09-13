@@ -41,6 +41,8 @@ internal fun StateMachineBuilder<MessageListState, MessageListEvent>.warmingUpIn
                 progress = 0f,
                 metadata = state.metadata,
                 preferences = requireNotNull(state.preferences),
+                messages = state.messages,
+                content = state.content,
             )
         }
     }

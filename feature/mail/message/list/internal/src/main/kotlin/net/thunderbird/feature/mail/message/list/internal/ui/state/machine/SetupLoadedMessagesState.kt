@@ -24,7 +24,9 @@ import net.thunderbird.feature.mail.message.list.ui.state.withState
  * - On [MessageListSearchEvent.EnterSearchMode]: Moves to [MessageListState.SearchingMessages]
  *   with an empty search query.
  */
-internal fun StateMachineBuilder<MessageListState, MessageListEvent>.loadedMessagesState() {
+internal fun StateMachineBuilder<MessageListState, MessageListEvent>.loadedMessagesState(
+    contentFactory: ContentFactory,
+) {
     state<MessageListState.LoadedMessages> {
         transition<MessageItemEvent.ToggleSelectMessages> { state, event ->
             MessageListState.SelectingMessages(
@@ -33,6 +35,7 @@ internal fun StateMachineBuilder<MessageListState, MessageListEvent>.loadedMessa
                 messages = state.messages.map { message ->
                     if (message in event.messages) message.copy(selected = !message.selected) else message
                 }.toPersistentList(),
+                content = state.content,
             )
         }
         transition<MessageListEvent.EnterSelectionMode> { state, _ ->
@@ -40,6 +43,7 @@ internal fun StateMachineBuilder<MessageListState, MessageListEvent>.loadedMessa
                 metadata = state.metadata,
                 preferences = state.preferences,
                 messages = state.messages,
+                content = state.content,
             )
         }
         transition<MessageListSearchEvent.EnterSearchMode> { state, _ ->
@@ -49,18 +53,23 @@ internal fun StateMachineBuilder<MessageListState, MessageListEvent>.loadedMessa
                 metadata = state.metadata,
                 preferences = state.preferences,
                 messages = state.messages,
+                content = state.content,
             )
         }
         transition<MessageItemEvent.SetMessageActive> { state, event ->
             state
-                .mapMessages { message ->
+                .mapMessages(
+                    contentFor(state.metadata, state.preferences, state.contactIdentities, contentFactory),
+                ) { message ->
                     message.copy(active = message.id == event.message?.id)
                 }
                 .withMetadata { copy(activeMessage = event.message) }
         }
         transition<MessageItemEvent.OnMessageClick> { state, event ->
             state
-                .mapMessages { message ->
+                .mapMessages(
+                    contentFor(state.metadata, state.preferences, state.contactIdentities, contentFactory),
+                ) { message ->
                     val isCurrent = message.id == event.message.id
                     message.copy(active = isCurrent).withState(
                         if (isCurrent && message.state != MessageItemUi.State.Read) {

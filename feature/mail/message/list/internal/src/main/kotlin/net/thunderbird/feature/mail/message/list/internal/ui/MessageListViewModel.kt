@@ -6,7 +6,10 @@ import kotlinx.coroutines.flow.onEach
 import net.thunderbird.core.common.resources.StringsResourceManager
 import net.thunderbird.core.common.state.StateMachine
 import net.thunderbird.core.logging.Logger
+import net.thunderbird.feature.mail.message.list.internal.aggregation.ContactMessageAggregator
+import net.thunderbird.feature.mail.message.list.internal.aggregation.MessageListContentFactory
 import net.thunderbird.feature.mail.message.list.internal.ui.state.machine.MessageListStateMachine
+import net.thunderbird.feature.mail.message.list.internal.ui.state.machine.createContentFactory
 import net.thunderbird.feature.mail.message.list.ui.MessageListContract
 import net.thunderbird.feature.mail.message.list.ui.effect.MessageListEffect
 import net.thunderbird.feature.mail.message.list.ui.event.MessageListEvent
@@ -21,9 +24,22 @@ internal class MessageListViewModel(
     messageListStateMachineFactory: MessageListStateMachine.Factory,
     stateSideEffectHandlersFactories: List<MessageListStateSideEffectHandlerFactory>,
     stringsResourceManager: StringsResourceManager,
+    contactMessageAggregator: ContactMessageAggregator,
 ) : MessageListContract.ViewModel(logger, stateSideEffectHandlersFactories) {
+    private val contentFactory = createContentFactory(
+        contentFactory = MessageListContentFactory(
+            contactMessageAggregator = contactMessageAggregator,
+            stringsResourceManager = stringsResourceManager,
+        ),
+    )
+
     override val stateMachine: StateMachine<MessageListState, MessageListEvent> = messageListStateMachineFactory
-        .create(scope = viewModelScope, dispatch = ::event, dispatchUiEffect = ::emitEffect)
+        .create(
+            contentFactory = contentFactory,
+            scope = viewModelScope,
+            dispatch = ::event,
+            dispatchUiEffect = ::emitEffect,
+        )
 
     init {
         logger.verbose(TAG) { "init() called" }

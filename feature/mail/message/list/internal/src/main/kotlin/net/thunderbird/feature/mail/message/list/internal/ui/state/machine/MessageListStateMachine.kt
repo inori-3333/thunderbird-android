@@ -32,6 +32,7 @@ private const val TAG = "MessageListStateMachine"
  * keeps the state management logic clean and focused.
  *
  * @param dispatch A function to send new events back into the state machine, allowing for event-driven side effects.
+ * @param contentFactory Creates the content that is displayed for the messages of the message list.
  * @param stateMachine The underlying state machine implementation, configured with all possible states and transitions.
  */
 class MessageListStateMachine(
@@ -41,6 +42,7 @@ class MessageListStateMachine(
     private val dispatch: (MessageListEvent) -> Unit,
     private val dispatchUiEffect: (MessageListEffect) -> Unit,
     private val debuggingSettingsPreferenceManager: DebuggingSettingsPreferenceManager,
+    contentFactory: ContentFactory,
     private val stateMachine: StateMachine<MessageListState, MessageListEvent> = stateMachine(scope) {
         withLogger(logger, TAG)
         if (debuggingSettingsPreferenceManager.getConfig().isDebugLoggingEnabled) {
@@ -58,9 +60,9 @@ class MessageListStateMachine(
             }
         }
         warmingUpInitialState(initialState = MessageListState.WarmingUp(), dispatch)
-        globalState()
-        loadingMessagesState(dispatch)
-        loadedMessagesState()
+        globalState(contentFactory)
+        loadingMessagesState(contentFactory, dispatch)
+        loadedMessagesState(contentFactory)
         selectingMessagesState(dispatch, dispatchUiEffect)
         searchingMessagesState()
     },
@@ -71,6 +73,7 @@ class MessageListStateMachine(
         private val debuggingSettingsPreferenceManager: DebuggingSettingsPreferenceManager,
     ) {
         fun create(
+            contentFactory: ContentFactory,
             scope: CoroutineScope,
             dispatch: (MessageListEvent) -> Unit,
             dispatchUiEffect: (MessageListEffect) -> Unit,
@@ -82,6 +85,7 @@ class MessageListStateMachine(
                 dispatch = dispatch,
                 dispatchUiEffect = dispatchUiEffect,
                 debuggingSettingsPreferenceManager = debuggingSettingsPreferenceManager,
+                contentFactory = contentFactory,
             )
     }
 }

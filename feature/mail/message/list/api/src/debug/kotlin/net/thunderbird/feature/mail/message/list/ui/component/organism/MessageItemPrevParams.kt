@@ -21,6 +21,7 @@ internal data class MessageItemPrevParams(
     val threadCount: Int = 0,
     val senderAboveSubject: Boolean = true,
     val receivedAt: String = "12:34",
+    val sortTimestamp: Long = 0L,
     val maxExcerptLines: Int = 2,
     val badgeStyle: MessageBadgeStyle? = null,
     val avatar: Avatar? = null,

@@ -35,6 +35,7 @@ internal fun StateMachineBuilder<MessageListState, MessageListEvent>.searchingMe
                 metadata = state.metadata,
                 preferences = state.preferences,
                 messages = state.messages,
+                content = state.content,
             )
         }
     }

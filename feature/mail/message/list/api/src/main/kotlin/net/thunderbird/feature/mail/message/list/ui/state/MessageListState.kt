@@ -5,6 +5,8 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
+import net.thunderbird.feature.mail.message.list.aggregation.model.ContactIdentity
+import net.thunderbird.feature.mail.message.list.aggregation.model.SenderIdentity
 import net.thunderbird.feature.mail.message.list.preferences.MessageListPreferences
 
 /**
@@ -13,86 +15,159 @@ import net.thunderbird.feature.mail.message.list.preferences.MessageListPreferen
  * This sealed interface defines the different possible states, such as when messages are being loaded,
  * have been loaded, are being searched, or when the user is selecting messages for an action.
  *
+ * @property metadata Contextual information about the message list.
  * @property preferences User-configurable preferences for the message list display.
- * @property messages An immutable list of [MessageItemUi] objects to be displayed.
+ * @property messages The messages of the current folder/filter. This is the single source of truth for
+ *  the data of the screen, independent of the way it is presented.
+ * @property content The way the [messages] are presented. Either as regular message rows or - when contact
+ *  aggregation is enabled - as one row per sender. Must always be derived from [messages].
+ * @property contactIdentities The senders of [messages] that were resolved to an Android contact. Empty while
+ *  contacts are not resolved (yet) or when the contacts permission is not granted.
  */
 @Immutable
 sealed interface MessageListState {
     val metadata: MessageListMetadata
     val preferences: MessageListPreferences?
     val messages: ImmutableList<MessageItemUi>
+    val content: MessageListContent
+    val contactIdentities: Map<SenderIdentity, ContactIdentity>
 
     /**
-     * Creates a copy of the current state with updated [metadata], preserving all other
-     * properties.
+     * Creates a copy of the current state with updated [metadata]. All other properties are preserved.
      *
-     * This is a convenience function to immutably update the state with new [metadata]
-     * without needing to manually copy all other properties. It ensures that the specific
-     * type of the state (e.g., [LoadedMessages], [SearchingMessages]) is preserved.
+     * This ensures that the specific type of the state (e.g., [LoadedMessages], [SearchingMessages]) is
+     * preserved.
      *
-     * This is useful for modifying shared properties without needing to handle each state
-     * subtype individually.
-     *
-     * @param transform A lambda function that receives the current [MessageListMetadata]
-     * and returns a new, transformed instance.
-     * @return A new [MessageListState] instance of the same type as the original, but with
-     * the updated metadata.
+     * @param transform A lambda function that receives the current [MessageListMetadata] and returns a
+     *  new, transformed instance.
+     * @return A new [MessageListState] instance of the same type as the original, but with the updated
+     *  metadata.
      */
     fun withMetadata(
         transform: MessageListMetadata.() -> MessageListMetadata,
-    ): MessageListState = when (this) {
-        is LoadedMessages -> copy(metadata = metadata.transform())
-        is LoadingMessages -> copy(metadata = metadata.transform())
-        is SearchingMessages -> copy(metadata = metadata.transform())
-        is SelectingMessages -> copy(metadata = metadata.transform())
-        is WarmingUp -> copy(metadata = metadata.transform())
-    }
+    ): MessageListState = withUpdate(content = content, metadata = metadata.transform())
 
     /**
-     * Creates a copy of the current state with updated [preferences], preserving all other
-     * properties.
+     * Creates a copy of the current state with updated [preferences]. All other properties are preserved.
      *
-     * This is a convenience function to immutably update the state with new [preferences]
-     * without needing to manually copy all other properties. It ensures that the specific
-     * type of the state (e.g., [LoadedMessages], [SearchingMessages]) is preserved.
+     * This ensures that the specific type of the state (e.g., [LoadedMessages], [SearchingMessages]) is
+     * preserved.
      *
-     * This is particularly useful when preferences change (e.g., user toggles conversation mode)
-     * and the UI needs to be recomposed with the new settings while maintaining the rest of the
-     * current state like the list of messages, selected folder, etc.
+     * **Note:** Changing the aggregation mode in the preferences does not recompute [content]. The
+     * aggregation mode is a projection of [messages] and has to be applied by the caller.
      *
-     * @param transform A lambda function that receives the current [MessageListPreferences]
-     * and returns a new, transformed instance.
-     * @return A new [MessageListState] instance of the same type as the original, but with
-     * the updated preferences.
+     * @param transform A lambda function that receives the current [MessageListPreferences] and returns
+     *  a new, transformed instance.
+     * @return A new [MessageListState] instance of the same type as the original, but with the updated
+     *  preferences.
      */
     fun withPreferences(
         transform: MessageListPreferences.() -> MessageListPreferences,
-    ): MessageListState = when (this) {
-        is LoadedMessages -> copy(preferences = preferences.transform())
-        is LoadingMessages -> copy(preferences = preferences.transform())
-        is SearchingMessages -> copy(preferences = preferences.transform())
-        is SelectingMessages -> copy(preferences = preferences.transform())
-        is WarmingUp -> copy(preferences = preferences?.transform())
+    ): MessageListState {
+        val newPreferences = requireNotNull(preferences).transform()
+        return withUpdate(content = content, preferences = newPreferences)
     }
 
     /**
-     * Creates a copy of the current state with an updated list of [messages], preserving all other
-     * properties.
+     * Creates a copy of the current state with updated [messages] and [content].
      *
+     * @param content Creates the new content for the transformed list of messages.
      * @param transform A lambda function that receives the current [ImmutableList] of [MessageItemUi]
-     * and returns a new, transformed list.
+     *  and returns a new, transformed list.
      * @return A new [MessageListState] instance of the same type as the original, containing the
-     * transformed messages.
+     *  transformed messages.
      */
-    fun mapMessages(transform: (MessageItemUi) -> MessageItemUi): MessageListState {
-        val messages = messages.map(transform).toImmutableList()
-        return when (this) {
-            is LoadedMessages -> copy(messages = messages)
-            is LoadingMessages -> copy(messages = messages)
-            is SearchingMessages -> copy(messages = messages)
-            is SelectingMessages -> copy(messages = messages)
-            is WarmingUp -> copy(messages = messages)
-        }
+    fun mapMessages(
+        content: (List<MessageItemUi>) -> MessageListContent,
+        transform: (MessageItemUi) -> MessageItemUi,
+    ): MessageListState {
+        val newMessages = messages.map(transform).toImmutableList()
+        return withUpdate(content = content(newMessages), messages = newMessages)
+    }
+
+    /**
+     * Creates a copy of the current state with updated [contactIdentities] and the [content] that results from
+     * them.
+     *
+     * @param content Creates the new content for the given identities.
+     * @param contactIdentities The resolved senders.
+     * @return A new [MessageListState] instance of the same type as the original.
+     */
+    fun withContactIdentities(
+        contactIdentities: Map<SenderIdentity, ContactIdentity>,
+        content: (Map<SenderIdentity, ContactIdentity>) -> MessageListContent,
+    ): MessageListState = withUpdate(
+        content = content(contactIdentities),
+        contactIdentities = contactIdentities,
+    )
+
+    /**
+     * Creates a copy of the current state with updated [content] for the currently loaded messages.
+     *
+     * @param content Creates the new content for the currently loaded messages.
+     * @return A new [MessageListState] instance of the same type as the original, containing the given
+     *  content.
+     */
+    fun withContent(content: (List<MessageItemUi>) -> MessageListContent): MessageListState =
+        withUpdate(content = content(messages))
+
+    /**
+     * Creates a copy of the current state with the given changes applied.
+     *
+     * @param content The [content] of the new state.
+     * @param messages The [messages] of the new state. Defaults to the messages of the current state.
+     * @param preferences The [preferences] of the new state. Defaults to the preferences of the current state.
+     * @param metadata The [metadata] of the new state. Defaults to the metadata of the current state.
+     * @param contactIdentities The [contactIdentities] of the new state. Defaults to the identities of the
+     *  current state.
+     */
+    @Suppress("LongParameterList")
+    fun withUpdate(
+        content: MessageListContent,
+        messages: ImmutableList<MessageItemUi> = this.messages,
+        preferences: MessageListPreferences? = this.preferences,
+        metadata: MessageListMetadata = this.metadata,
+        contactIdentities: Map<SenderIdentity, ContactIdentity> = this.contactIdentities,
+    ): MessageListState = when (this) {
+        is LoadedMessages -> copy(
+            metadata = metadata,
+            preferences = requireNotNull(preferences),
+            messages = messages,
+            content = content,
+            contactIdentities = contactIdentities,
+        )
+
+        is LoadingMessages -> copy(
+            metadata = metadata,
+            preferences = requireNotNull(preferences),
+            messages = messages,
+            content = content,
+            contactIdentities = contactIdentities,
+        )
+
+        is SearchingMessages -> copy(
+            metadata = metadata,
+            preferences = requireNotNull(preferences),
+            messages = messages,
+            content = content,
+            contactIdentities = contactIdentities,
+        )
+
+        is SelectingMessages -> copy(
+            metadata = metadata,
+            preferences = requireNotNull(preferences),
+            messages = messages,
+            content = content,
+            contactIdentities = contactIdentities,
+        )
+
+        is WarmingUp -> copy(
+            metadata = metadata,
+            preferences = preferences,
+            messages = messages,
+            content = content,
+            contactIdentities = contactIdentities,
+        )
     }
 
     /**
@@ -112,6 +187,8 @@ sealed interface MessageListState {
         ),
         override val preferences: MessageListPreferences? = null,
         override val messages: ImmutableList<MessageItemUi> = persistentListOf(),
+        override val content: MessageListContent = messages.toMessagesContent(),
+        override val contactIdentities: Map<SenderIdentity, ContactIdentity> = persistentMapOf(),
     ) : MessageListState {
         /**
          * Indicates whether the warming-up state has completed and is ready to transition to an active state.
@@ -132,6 +209,8 @@ sealed interface MessageListState {
         override val metadata: MessageListMetadata,
         override val preferences: MessageListPreferences,
         override val messages: ImmutableList<MessageItemUi>,
+        override val content: MessageListContent = messages.toMessagesContent(),
+        override val contactIdentities: Map<SenderIdentity, ContactIdentity> = persistentMapOf(),
     ) : MessageListState
 
     /**
@@ -150,13 +229,15 @@ sealed interface MessageListState {
         override val metadata: MessageListMetadata,
         override val preferences: MessageListPreferences,
         override val messages: ImmutableList<MessageItemUi> = persistentListOf(),
+        override val content: MessageListContent = messages.toMessagesContent(),
+        override val contactIdentities: Map<SenderIdentity, ContactIdentity> = persistentMapOf(),
     ) : MessageListState
 
     /**
      * Represents the state when the user is actively searching for messages.
      *
      * This state is triggered when the user enters a query in the search bar. The message list will display
-     * results matching the query, either from the local database or by performing a search on the server.
+     * results matching the query, either from a local database or by performing a search on the server.
      *
      * @param searchQuery The text query entered by the user.
      * @param isServerSearch `true` if the search is being performed on the mail server; `false` if it's a local search.
@@ -167,6 +248,8 @@ sealed interface MessageListState {
         override val metadata: MessageListMetadata,
         override val preferences: MessageListPreferences,
         override val messages: ImmutableList<MessageItemUi>,
+        override val content: MessageListContent = messages.toMessagesContent(),
+        override val contactIdentities: Map<SenderIdentity, ContactIdentity> = persistentMapOf(),
     ) : MessageListState
 
     /**
@@ -180,6 +263,8 @@ sealed interface MessageListState {
         override val metadata: MessageListMetadata,
         override val preferences: MessageListPreferences,
         override val messages: ImmutableList<MessageItemUi>,
+        override val content: MessageListContent = messages.toMessagesContent(),
+        override val contactIdentities: Map<SenderIdentity, ContactIdentity> = persistentMapOf(),
     ) : MessageListState {
         val selectedCount: Int = messages.count { it.selected }
     }
